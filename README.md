@@ -13,12 +13,97 @@ report **SQL** differ, and the report numbers come out identical.
 
 ## Star vs snowflake
 
+### Star
+
+```mermaid
+erDiagram
+    dim_date    ||--o{ fact_sales : date_key
+    dim_product ||--o{ fact_sales : product_key
+    dim_store   ||--o{ fact_sales : store_key
+
+    fact_sales {
+        text transaction_id PK
+        int  date_key FK
+        int  product_key FK
+        int  store_key FK
+        int  quantity
+        real revenue
+    }
+    dim_date {
+        int  date_key PK "YYYYMMDD"
+        text full_date "dd-mm-yyyy"
+        int  day
+        int  month
+        text month_name
+        int  quarter
+        int  year
+    }
+    dim_product {
+        int  product_key PK
+        text product_id "natural key"
+        text name
+        text category
+        real unit_price
+    }
+    dim_store {
+        int  store_key PK
+        text city
+        text region
+    }
 ```
-STAR                                     SNOWFLAKE
-                                                     dim_month
-            dim_date                                     │
-               │                                     dim_date
-dim_product ── fact_sales ── dim_store   dim_category ── dim_product ── fact_sales ── dim_store ── dim_region
+
+### Snowflake
+
+```mermaid
+erDiagram
+    dim_month    ||--o{ dim_date    : month_key
+    dim_category ||--o{ dim_product : category_key
+    dim_region   ||--o{ dim_store   : region_key
+    dim_date     ||--o{ fact_sales  : date_key
+    dim_product  ||--o{ fact_sales  : product_key
+    dim_store    ||--o{ fact_sales  : store_key
+
+    fact_sales {
+        text transaction_id PK
+        int  date_key FK
+        int  product_key FK
+        int  store_key FK
+        int  quantity
+        real revenue
+    }
+    dim_date {
+        int  date_key PK "YYYYMMDD"
+        text full_date "dd-mm-yyyy"
+        int  day
+        int  month_key FK
+    }
+    dim_month {
+        int  month_key PK "YYYYMM"
+        int  month
+        text month_name
+        int  quarter
+        int  year
+    }
+    dim_product {
+        int  product_key PK
+        text product_id "natural key"
+        text name
+        real unit_price
+        int  category_key FK
+    }
+    dim_category {
+        int  category_key PK
+        text category_name
+    }
+    dim_store {
+        int  store_key PK
+        text city
+        int  region_key FK
+    }
+    dim_region {
+        int  region_key PK
+        text region_name
+    }
 ```
 
 | | Star | Snowflake |

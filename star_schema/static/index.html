@@ -15,6 +15,7 @@
   </script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <style>[v-cloak] { display: none; }</style>
 </head>
 <body class="bg-stone-50 text-stone-900 font-sans antialiased">
@@ -122,12 +123,7 @@
       <!-- ============ LOAD ============ -->
       <template v-if="tab === 'load' && load">
         <block title="Schema">
-          <pre class="font-mono text-xs leading-5 text-stone-700 overflow-x-auto border border-stone-300 bg-white p-4">
-                           dim_date
-                (date_key, month, quarter, year)
-                               │
-  dim_product ────────── fact_sales ────────── dim_store
-(category, price)    (quantity, revenue)     (city, region)</pre>
+          <mermaid-diagram :code="schemaDiagram"></mermaid-diagram>
         </block>
         <div class="grid xl:grid-cols-2 gap-8">
           <block v-for="t in load.tables" :key="t.table" :title="t.table" :meta="t.count + ' rows, first 5 shown'">
@@ -173,6 +169,43 @@ const resizer = new ResizeObserver(entries =>
   entries.forEach(e => echarts.getInstanceByDom(e.target)?.resize()));
 const ksh = v => 'KSh ' + Number(v).toLocaleString();
 const short = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v;
+
+const SCHEMA_DIAGRAM = `erDiagram
+    dim_date    ||--o{ fact_sales : date_key
+    dim_product ||--o{ fact_sales : product_key
+    dim_store   ||--o{ fact_sales : store_key
+
+    fact_sales {
+        text transaction_id PK
+        int  date_key FK
+        int  product_key FK
+        int  store_key FK
+        int  quantity
+        real revenue
+    }
+    dim_date {
+        int  date_key PK "YYYYMMDD"
+        text full_date "dd-mm-yyyy"
+        int  day
+        int  month
+        text month_name
+        int  quarter
+        int  year
+    }
+    dim_product {
+        int  product_key PK
+        text product_id "natural key"
+        text name
+        text category
+        real unit_price
+    }
+    dim_store {
+        int  store_key PK
+        text city
+        text region
+    }`;
+
+mermaid.initialize({ startOnLoad: false, theme: 'neutral', fontFamily: 'IBM Plex Sans' });
 
 const NOTES = {
   extract: {
@@ -229,6 +262,7 @@ const app = createApp({
       { id: 'report', label: 'Report' },
     ],
     tab: 'extract',
+    schemaDiagram: SCHEMA_DIAGRAM,
     extract: null, transform: null, load: null, dash: null,
     busy: null, error: '',
   }),
@@ -350,6 +384,15 @@ app.component('stats', {
       <dt class="text-xs text-stone-500">{{ label }}</dt>
       <dd class="font-mono text-lg mt-0.5">{{ value }}</dd>
     </div></dl>`,
+});
+let diagramCount = 0;
+app.component('mermaid-diagram', {
+  props: ['code'],
+  template: `<div class="border border-stone-300 bg-white p-4 overflow-x-auto [&_svg]:mx-auto"></div>`,
+  async mounted() {
+    const { svg } = await mermaid.render(`schema-diagram-${++diagramCount}`, this.code);
+    this.$el.innerHTML = svg;
+  },
 });
 app.component('sql-view', {
   props: ['sql'],

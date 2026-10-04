@@ -20,6 +20,17 @@ python3 report.py          # analytical queries in the terminal
 
 ## The pipeline
 
+```mermaid
+flowchart LR
+    A[data/sales_raw.csv] --> E[Extract]
+    B[data/products.csv] --> E
+    E -->|staging| T[Transform]
+    T -->|rejected rows + reasons| R[(data quality log)]
+    T -->|clean rows| L[Load]
+    L --> W[(warehouse.db<br/>snowflake schema)]
+    W --> Q[report.py / web UI]
+```
+
 | Step | What happens | Where |
 |---|---|---|
 | **Extract** | Read `data/sales_raw.csv` (~100 transactions, Jan–Dec 2026) and `data/products.csv` (catalog) | `etl.extract()` |
@@ -36,13 +47,56 @@ That means less redundancy and one place to make an edit. The cost is extra join
 
 ## Snowflake schema
 
-```
-                 dim_month  (month_key YYYYMM, month, quarter, year)
-                     │
-                 dim_date   (date_key YYYYMMDD, full_date, day)
-                     │
-dim_category ── dim_product ── fact_sales ── dim_store ── dim_region
- (category)    (name, price)  (qty, revenue)  (city)       (region)
+```mermaid
+erDiagram
+    dim_month    ||--o{ dim_date    : month_key
+    dim_category ||--o{ dim_product : category_key
+    dim_region   ||--o{ dim_store   : region_key
+    dim_date     ||--o{ fact_sales  : date_key
+    dim_product  ||--o{ fact_sales  : product_key
+    dim_store    ||--o{ fact_sales  : store_key
+
+    fact_sales {
+        text transaction_id PK
+        int  date_key FK
+        int  product_key FK
+        int  store_key FK
+        int  quantity
+        real revenue
+    }
+    dim_date {
+        int  date_key PK "YYYYMMDD"
+        text full_date "dd-mm-yyyy"
+        int  day
+        int  month_key FK
+    }
+    dim_month {
+        int  month_key PK "YYYYMM"
+        int  month
+        text month_name
+        int  quarter
+        int  year
+    }
+    dim_product {
+        int  product_key PK
+        text product_id "natural key"
+        text name
+        real unit_price
+        int  category_key FK
+    }
+    dim_category {
+        int  category_key PK
+        text category_name
+    }
+    dim_store {
+        int  store_key PK
+        text city
+        int  region_key FK
+    }
+    dim_region {
+        int  region_key PK
+        text region_name
+    }
 ```
 
 ## Files
@@ -64,7 +118,7 @@ Each step has its own tab, with a note explaining what it does and why it matter
 |---|---|
 | **1 · Extract** | Raw sales and the product catalog exactly as read, messy values included |
 | **2 · Transform** | Every value fixed (before → after), rejected rows with reasons, the clean rows |
-| **3 · Load** | Star schema diagram, row count and the first 5 rows of each warehouse table |
+| **3 · Load** | Mermaid ER diagram of the schema, row count and the first 5 rows of each warehouse table |
 | **4 · Report** | KPIs, revenue by month, category and store (ECharts), top products |
 
 A step can only run after the one before it. **Run all steps** runs the whole pipeline and opens the Report tab.
