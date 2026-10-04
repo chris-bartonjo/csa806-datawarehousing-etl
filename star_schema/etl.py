@@ -1,10 +1,9 @@
 """ETL demo: CSV sources -> clean -> SQLite star schema (warehouse.db).
 
-Run:  python3 etl.py
+Each step is called on its own by app.py when you click Run in the web UI.
 """
 import csv
 import sqlite3
-from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -170,32 +169,3 @@ def load(clean, catalog):
     counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in TABLES}
     con.close()
     return counts
-
-
-# -------------------------------------------------------------- PIPELINE
-def run():
-    sales, products = extract()
-    clean, rejected, catalog, _ = transform(sales, products)
-    tables = load(clean, catalog)
-    return {
-        "extracted": {"sales_raw.csv": len(sales), "products.csv": len(products)},
-        "cleaned": len(clean),
-        "rejected": [{"transaction_id": t, "reason": r} for t, r in rejected],
-        "rejected_by_reason": dict(Counter(r for _, r in rejected)),
-        "loaded": tables,
-    }
-
-
-if __name__ == "__main__":
-    s = run()
-    print("[EXTRACT]")
-    for src, n in s["extracted"].items():
-        print(f"  {src:<16} {n:>4} rows")
-    print("[TRANSFORM]")
-    print(f"  clean rows       {s['cleaned']:>4}")
-    print(f"  rejected rows    {len(s['rejected']):>4}")
-    for reason, n in s["rejected_by_reason"].items():
-        print(f"    - {reason:<22} {n}")
-    print(f"[LOAD] -> {DB_PATH.name}")
-    for table, n in s["loaded"].items():
-        print(f"  {table:<16} {n:>4} rows")

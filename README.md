@@ -121,7 +121,6 @@ erDiagram
 ```bash
 cd star_schema            # or snowflake_schema
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
-python3 etl.py                                                       # CLI pipeline (optional)
 .venv/bin/uvicorn app:app --reload                                   # add --port 8001 for snowflake
 ```
 
@@ -131,7 +130,6 @@ python3 etl.py                                                       # CLI pipel
 cd star_schema            # or snowflake_schema
 py -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt               # once
-.venv\Scripts\python etl.py                                         # CLI pipeline (optional)
 .venv\Scripts\python -m uvicorn app:app --reload                      # add --port 8001 for snowflake
 ```
 

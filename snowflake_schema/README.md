@@ -13,7 +13,6 @@ This is a self-contained project. `../star_schema` runs the same pipeline into a
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 python3 generate_data.py   # (optional) regenerate the dummy CSVs in data/
-python3 etl.py             # (optional) run all steps from the terminal; the UI does this too
 .venv/bin/uvicorn app:app --reload --port 8001   # dashboard at http://127.0.0.1:8001
 ```
 
@@ -26,14 +25,11 @@ py -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt   # once
 
 .venv\Scripts\python generate_data.py   # (optional) regenerate the dummy CSVs in data\
-.venv\Scripts\python etl.py             # (optional) run all steps from the terminal; the UI does this too
 .venv\Scripts\python -m uvicorn app:app --reload --port 8001   # dashboard at http://127.0.0.1:8001
 ```
 
 These call the venv's Python directly, so there's no need to activate it (PowerShell blocks `Activate.ps1` by
 default). If `py` is not found, use `python` instead.
-
-`generate_data.py` and `etl.py` use only the Python standard library. Only the web UI needs the venv.
 
 ## The pipeline
 
@@ -121,7 +117,7 @@ erDiagram
 | File | Purpose |
 |---|---|
 | `generate_data.py` | Builds dummy CSVs with planted data-quality problems (fixed seed, so the output is reproducible) |
-| `etl.py` | The ETL pipeline |
+| `etl.py` | The ETL steps: `extract()`, `transform()`, `load()`, called by the API |
 | `queries.py` | Report SQL against the warehouse, served to the UI by the API |
 | `app.py` | FastAPI: runs each step on its own and serves the UI |
 | `static/index.html` | Web UI with one tab per step (see below) |
