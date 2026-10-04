@@ -141,16 +141,16 @@
         <stats :items="[['Revenue', ksh(dash.kpis.revenue)], ['Transactions', dash.kpis.transactions],
                         ['Units', dash.kpis.units], ['Avg. order', ksh(dash.kpis.avg_order_value)]]"></stats>
         <block title="Revenue by month">
-          <div ref="monthChart" class="h-72 border border-stone-300 bg-white"></div>
+          <div ref="monthChart" style="height: 18rem" class="border border-stone-300 bg-white"></div>
           <sql-view :sql="dash.sql.revenue_by_month"></sql-view>
         </block>
         <div class="grid xl:grid-cols-2 gap-8">
           <block title="Revenue by category">
-            <div ref="categoryChart" class="h-60 border border-stone-300 bg-white"></div>
+            <div ref="categoryChart" style="height: 15rem" class="border border-stone-300 bg-white"></div>
             <sql-view :sql="dash.sql.revenue_by_category"></sql-view>
           </block>
           <block title="Revenue by store">
-            <div ref="storeChart" class="h-60 border border-stone-300 bg-white"></div>
+            <div ref="storeChart" style="height: 15rem" class="border border-stone-300 bg-white"></div>
             <sql-view :sql="dash.sql.revenue_by_store"></sql-view>
           </block>
         </div>
@@ -168,6 +168,9 @@
 <script>
 const { createApp, nextTick } = Vue;
 let charts = [];  // ECharts instances on the Report tab
+// Redraw a chart whenever its box changes size (late CSS, window resize).
+const resizer = new ResizeObserver(entries =>
+  entries.forEach(e => echarts.getInstanceByDom(e.target)?.resize()));
 const ksh = v => 'KSh ' + Number(v).toLocaleString();
 const short = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v;
 
@@ -295,13 +298,15 @@ const app = createApp({
     },
 
     disposeCharts() {
+      resizer.disconnect();
       charts.forEach(c => c.dispose());
       charts = [];
     },
     renderCharts() {
       this.disposeCharts();
       const d = this.dash;
-      const make = ref => { const c = echarts.init(this.$refs[ref]); charts.push(c); return c; };
+      const make = ref => { const el = this.$refs[ref];
+        const c = echarts.init(el); charts.push(c); resizer.observe(el); return c; };
       const base = {
         textStyle: { fontFamily: 'IBM Plex Sans', color: '#57534e' },
         tooltip: { trigger: 'axis', valueFormatter: ksh, axisPointer: { type: 'shadow' },
@@ -327,7 +332,6 @@ const app = createApp({
   async mounted() {
     const s = await this.api('GET', '/api/state');
     Object.assign(this, { extract: s.extract, transform: s.transform, load: s.load });
-    window.addEventListener('resize', () => charts.forEach(c => c.resize()));
   },
 });
 
