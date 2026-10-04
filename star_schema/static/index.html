@@ -246,10 +246,10 @@ const NOTES = {
     points: [
       'Each chart is one GROUP BY query over fact_sales joined to a single dimension.',
       'Expand "SQL" under a chart to see the query behind it.',
-      'The same queries run from the terminal with report.py.',
+      'The queries live in queries.py and reach this page through GET /api/dashboard.',
     ],
     outro: 'The snowflake_schema project gives the same totals. Its queries need an extra join for category, region and month.',
-    code: 'python3 report.py',
+    code: 'queries.query("revenue_by_month")',
   },
 };
 

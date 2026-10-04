@@ -1,4 +1,4 @@
-"""Analytical queries over the star schema. Shared by report.py and app.py."""
+"""Analytical queries over the star schema, served to the web UI by app.py."""
 import sqlite3
 
 from etl import DB_PATH, TABLES

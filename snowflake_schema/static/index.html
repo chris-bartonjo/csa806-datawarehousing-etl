@@ -262,10 +262,10 @@ const NOTES = {
     points: [
       'Category, region and month each need two joins, e.g. fact_sales → dim_product → dim_category.',
       'Expand "SQL" under a chart to see the query behind it.',
-      'The same queries run from the terminal with report.py.',
+      'The queries live in queries.py and reach this page through GET /api/dashboard.',
     ],
     outro: 'The star_schema project gives exactly the same totals with one join fewer per chart. Only the SQL changes.',
-    code: 'python3 report.py',
+    code: 'queries.query("revenue_by_month")',
   },
 };
 
