@@ -35,7 +35,7 @@ def messy_city(city):
 
 
 def write_products():
-    with open(DATA / "products.csv", "w", newline="") as f:
+    with open(DATA / "products.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["product_id", "name", "category", "unit_price"])
         w.writerows(PRODUCTS)
@@ -69,7 +69,7 @@ def write_sales():
     rows += [dict(r) for r in random.sample(rows, 6)]
 
     rows.sort(key=lambda r: r["transaction_id"])
-    with open(DATA / "sales_raw.csv", "w", newline="") as f:
+    with open(DATA / "sales_raw.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)

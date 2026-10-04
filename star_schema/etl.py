@@ -24,9 +24,9 @@ CITY_REGION = {
 
 # ---------------------------------------------------------------- EXTRACT
 def extract():
-    with open(DATA / "sales_raw.csv", newline="") as f:
+    with open(DATA / "sales_raw.csv", newline="", encoding="utf-8") as f:
         sales = list(csv.DictReader(f))
-    with open(DATA / "products.csv", newline="") as f:
+    with open(DATA / "products.csv", newline="", encoding="utf-8") as f:
         products = list(csv.DictReader(f))
     return sales, products
 

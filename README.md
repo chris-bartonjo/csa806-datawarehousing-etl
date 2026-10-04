@@ -116,9 +116,24 @@ erDiagram
 
 ## Run a project
 
+**macOS / Linux**
+
 ```bash
 cd star_schema            # or snowflake_schema
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 python3 etl.py && python3 report.py                                  # CLI
 .venv/bin/uvicorn app:app --reload                                   # add --port 8001 for snowflake
 ```
+
+**Windows (PowerShell or Command Prompt)**
+
+```powershell
+cd star_schema            # or snowflake_schema
+py -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt               # once
+.venv\Scripts\python etl.py
+.venv\Scripts\python report.py
+.venv\Scripts\python -m uvicorn app:app --reload                      # add --port 8001 for snowflake
+```
+
+See each project's README for details.

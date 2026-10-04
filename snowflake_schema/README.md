@@ -7,6 +7,8 @@ This is a self-contained project. `../star_schema` runs the same pipeline into a
 
 ## Run it
 
+### macOS / Linux
+
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
@@ -15,6 +17,23 @@ python3 etl.py             # run the pipeline -> warehouse.db
 python3 report.py          # analytical queries in the terminal
 .venv/bin/uvicorn app:app --reload --port 8001   # dashboard at http://127.0.0.1:8001
 ```
+
+### Windows (PowerShell or Command Prompt)
+
+Needs Python 3.10+ from [python.org](https://www.python.org/downloads/) (tick **Add python.exe to PATH** during install).
+
+```powershell
+py -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt   # once
+
+.venv\Scripts\python generate_data.py   # (optional) regenerate the dummy CSVs in data\
+.venv\Scripts\python etl.py             # run the pipeline -> warehouse.db
+.venv\Scripts\python report.py          # analytical queries in the terminal
+.venv\Scripts\python -m uvicorn app:app --reload --port 8001   # dashboard at http://127.0.0.1:8001
+```
+
+These call the venv's Python directly, so there's no need to activate it (PowerShell blocks `Activate.ps1` by
+default). If `py` is not found, use `python` instead.
 
 `generate_data.py`, `etl.py` and `report.py` use only the Python standard library. Only the dashboard needs the venv.
 
