@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ETL Snowflake Schema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['"IBM Plex Sans"', 'sans-serif'], mono: ['"IBM Plex Mono"', 'monospace'] },
+      colors: { accent: '#0f766e' },
+    } } };
+  </script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>[v-cloak] { display: none; }</style>
+</head>
+<body class="bg-stone-50 text-stone-900 font-sans antialiased">
+<div id="app" v-cloak>
+
+  <!-- Header -->
+  <header class="border-b border-stone-300 bg-white">
+    <div class="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <div class="font-mono text-xs text-stone-500">CSA806 / Module 2 / Data Warehousing</div>
+        <h1 class="text-xl font-semibold mt-1">Sales warehouse <span class="font-normal text-stone-500">· snowflake schema</span></h1>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <button @click="clearDb" :disabled="busy" class="text-red-700 hover:underline disabled:opacity-40">Clear DB</button>
+        <button @click="runAll" :disabled="busy"
+                class="px-3 py-1.5 bg-stone-900 text-white rounded-sm hover:bg-stone-700 disabled:opacity-40">Run all steps</button>
+      </div>
+    </div>
+    <!-- Tabs -->
+    <nav class="max-w-7xl mx-auto px-4 md:px-6 flex gap-6 overflow-x-auto text-sm">
+      <button v-for="(t, i) in tabs" :key="t.id" @click="openTab(t.id)"
+              :class="['py-2.5 -mb-px border-b-2 whitespace-nowrap',
+                       tab === t.id ? 'border-stone-900 text-stone-900 font-medium' : 'border-transparent text-stone-500 hover:text-stone-800']">
+        <span class="font-mono text-xs text-stone-400 mr-1">{{ i + 1 }}</span>{{ t.label }}
+        <span :class="['ml-2 font-mono text-xs', done[t.id] ? 'text-accent' : 'text-stone-300']">{{ done[t.id] ? 'done' : '·' }}</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 md:px-6 py-6 lg:flex lg:gap-10">
+
+    <!-- Step notes -->
+    <aside class="lg:w-80 lg:shrink-0 text-sm leading-relaxed text-stone-700 mb-8 lg:mb-0">
+      <div class="lg:sticky lg:top-6 space-y-3">
+        <h2 class="font-mono text-xs uppercase tracking-wider text-stone-500">Notes · {{ currentTab.label }}</h2>
+        <p>{{ note.intro }}</p>
+        <ul class="space-y-1.5">
+          <li v-for="p in note.points" :key="p" class="pl-4 relative before:content-['–'] before:absolute before:left-0 before:text-stone-400">{{ p }}</li>
+        </ul>
+        <p>{{ note.outro }}</p>
+        <p class="font-mono text-xs bg-stone-900 text-stone-100 px-3 py-2 rounded-sm"><span class="text-stone-500">&gt;&gt;&gt; </span>{{ note.code }}</p>
+      </div>
+    </aside>
+
+    <div class="flex-1 min-w-0 space-y-8">
+
+      <p v-if="error" class="border-l-2 border-red-700 pl-3 text-sm text-red-800">{{ error }}</p>
+
+      <!-- Step action -->
+      <div v-if="tab !== 'report'" class="flex flex-wrap items-center gap-3 text-sm">
+        <button @click="runStep(tab)" :disabled="busy || !canRun(tab)"
+                class="px-3 py-1.5 border border-stone-900 rounded-sm hover:bg-stone-900 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-stone-900">
+          {{ busy === tab ? 'Running…' : (done[tab] ? 'Re-run ' : 'Run ') + currentTab.label.toLowerCase() }}
+        </button>
+        <span v-if="!canRun(tab)" class="text-stone-500">Needs {{ prerequisite(tab).toLowerCase() }} to run first.</span>
+      </div>
+
+      <!-- ============ EXTRACT ============ -->
+      <template v-if="tab === 'extract' && extract">
+        <stats :items="[['sales_raw.csv', extract.sales.length + ' rows'], ['products.csv', extract.products.length + ' rows']]"></stats>
+        <block title="Raw sales, as read from the file">
+          <data-table :rows="extract.sales" max-height="26rem"></data-table>
+        </block>
+        <block title="Product catalog">
+          <data-table :rows="extract.products"></data-table>
+        </block>
+      </template>
+
+      <!-- ============ TRANSFORM ============ -->
+      <template v-if="tab === 'transform' && transform">
+        <stats :items="[['Rows in', transform.rows_in], ['Kept', transform.clean.length],
+                        ['Rejected', transform.rejected.length], ['Values changed', transform.changes.length]]"></stats>
+        <div class="grid xl:grid-cols-2 gap-8">
+          <block title="Rejected rows">
+            <table class="text-sm font-mono mb-3">
+              <tr v-for="(n, reason) in transform.rejected_by_reason" :key="reason">
+                <td class="pr-6 text-stone-600">{{ reason }}</td><td class="text-right">{{ n }}</td>
+              </tr>
+            </table>
+            <data-table :rows="transform.rejected" max-height="16rem"></data-table>
+          </block>
+          <block title="Values changed">
+            <div class="overflow-auto border border-stone-300" style="max-height: 22rem">
+              <table class="w-full text-xs font-mono">
+                <thead class="sticky top-0 bg-stone-100 text-stone-600"><tr class="text-left">
+                  <th class="px-2 py-1.5 font-medium">transaction_id</th><th class="px-2 font-medium">field</th>
+                  <th class="px-2 font-medium">before</th><th class="px-2 font-medium">after</th></tr></thead>
+                <tbody>
+                  <tr v-for="(c, i) in transform.changes" :key="i" class="border-t border-stone-200">
+                    <td class="px-2 py-1">{{ c.transaction_id }}</td>
+                    <td class="px-2 text-stone-500">{{ c.field }}</td>
+                    <td class="px-2 whitespace-pre text-red-800">"{{ c.before }}"</td>
+                    <td class="px-2 text-green-800">"{{ c.after }}"</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </block>
+        </div>
+        <block title="Clean rows, ready to load">
+          <data-table :rows="transform.clean" max-height="26rem"></data-table>
+        </block>
+      </template>
+
+      <!-- ============ LOAD ============ -->
+      <template v-if="tab === 'load' && load">
+        <block title="Schema">
+          <pre class="font-mono text-xs leading-5 text-stone-700 overflow-x-auto border border-stone-300 bg-white p-4">
+                  dim_month  (month, quarter, year)
+                      │
+                  dim_date   (date_key, full_date, day)
+                      │
+dim_category ── dim_product ── fact_sales ── dim_store ── dim_region
+ (category)    (name, price)  (qty, revenue)  (city)       (region)</pre>
+        </block>
+        <div class="grid xl:grid-cols-2 gap-8">
+          <block v-for="t in load.tables" :key="t.table" :title="t.table" :meta="t.count + ' rows, first 5 shown'">
+            <data-table :rows="t.rows" :columns="t.columns"></data-table>
+          </block>
+        </div>
+      </template>
+
+      <!-- ============ REPORT ============ -->
+      <template v-if="tab === 'report' && dash && !dash.empty">
+        <stats :items="[['Revenue', ksh(dash.kpis.revenue)], ['Transactions', dash.kpis.transactions],
+                        ['Units', dash.kpis.units], ['Avg. order', ksh(dash.kpis.avg_order_value)]]"></stats>
+        <block title="Revenue by month">
+          <div ref="monthChart" class="h-72 border border-stone-300 bg-white"></div>
+          <sql-view :sql="dash.sql.revenue_by_month"></sql-view>
+        </block>
+        <div class="grid xl:grid-cols-2 gap-8">
+          <block title="Revenue by category">
+            <div ref="categoryChart" class="h-60 border border-stone-300 bg-white"></div>
+            <sql-view :sql="dash.sql.revenue_by_category"></sql-view>
+          </block>
+          <block title="Revenue by store">
+            <div ref="storeChart" class="h-60 border border-stone-300 bg-white"></div>
+            <sql-view :sql="dash.sql.revenue_by_store"></sql-view>
+          </block>
+        </div>
+        <block title="Products by revenue">
+          <data-table :rows="dash.top_products"></data-table>
+          <sql-view :sql="dash.sql.top_products"></sql-view>
+        </block>
+      </template>
+
+      <p v-if="emptyMessage" class="text-sm text-stone-500 border border-dashed border-stone-300 px-4 py-10 text-center">{{ emptyMessage }}</p>
+    </div>
+  </main>
+</div>
+
+<script>
+const { createApp, nextTick } = Vue;
+let charts = [];  // ECharts instances on the Report tab
+const ksh = v => 'KSh ' + Number(v).toLocaleString();
+const short = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v;
+
+const NOTES = {
+  extract: {
+    intro: 'Read the two source files into memory without changing anything. The rows sit in a staging area until Transform picks them up.',
+    points: [
+      'data/sales_raw.csv: point-of-sale export, about 100 rows, Jan to Dec 2026.',
+      'data/products.csv: the product catalog, 7 products.',
+      'In production these would be OLTP databases, APIs or files dropped by other systems.',
+    ],
+    outro: 'Look through the raw table before moving on. There are blank quantities, repeated transaction IDs, two date formats and city names with stray spaces or odd casing.',
+    code: 'etl.extract()',
+  },
+  transform: {
+    intro: 'Clean the staged rows and decide what is allowed into the warehouse.',
+    points: [
+      'Drop repeated transaction IDs (the first one is kept).',
+      'Convert every date to dd-mm-yyyy. date_key keeps YYYYMMDD so dates still sort.',
+      'Trim and title-case city names.',
+      'Reject a row if quantity is blank or ≤ 0, or the product is not in the catalog.',
+      'Add region from the city, and compute revenue = quantity × unit price.',
+    ],
+    outro: 'Rejected rows are logged with a reason rather than dropped quietly, so someone can go back and fix the source.',
+    code: 'etl.transform(sales, products)',
+  },
+  load: {
+    intro: 'Write the clean rows into warehouse.db as a snowflake schema.',
+    points: [
+      'Dimensions are split into hierarchies: date → month, product → category, store → region.',
+      'Each category, region and month is stored once and referenced by key.',
+      'Parent tables load first, so the child rows have keys to point at.',
+      'Source IDs like P001 are swapped for integer surrogate keys.',
+      'Full refresh: the tables are dropped and rebuilt on every load.',
+    ],
+    outro: 'Less repetition, and renaming a category touches one row. The cost is extra joins when you query (compare with the star_schema project).',
+    code: 'etl.load(clean, catalog)',
+  },
+  report: {
+    intro: 'Business questions answered with SQL against the warehouse.',
+    points: [
+      'Category, region and month each need two joins, e.g. fact_sales → dim_product → dim_category.',
+      'Expand "SQL" under a chart to see the query behind it.',
+      'The same queries run from the terminal with report.py.',
+    ],
+    outro: 'The star_schema project gives exactly the same totals with one join fewer per chart. Only the SQL changes.',
+    code: 'python3 report.py',
+  },
+};
+
+const app = createApp({
+  data: () => ({
+    tabs: [
+      { id: 'extract', label: 'Extract' },
+      { id: 'transform', label: 'Transform' },
+      { id: 'load', label: 'Load' },
+      { id: 'report', label: 'Report' },
+    ],
+    tab: 'extract',
+    extract: null, transform: null, load: null, dash: null,
+    busy: null, error: '',
+  }),
+  computed: {
+    note() { return NOTES[this.tab]; },
+    currentTab() { return this.tabs.find(t => t.id === this.tab); },
+    done() {
+      return { extract: !!this.extract, transform: !!this.transform, load: !!this.load,
+               report: !!this.load };
+    },
+    emptyMessage() {
+      if (this.tab === 'report' && !this.load) return 'The warehouse is empty. Run extract, transform and load first.';
+      if (this.tab !== 'report' && !this.done[this.tab]) return 'Nothing yet. Run this step to see its output.';
+      return '';
+    },
+  },
+  methods: {
+    ksh,
+    canRun(step) { return step === 'extract' || this.done[this.prerequisiteId(step)]; },
+    prerequisiteId(step) { return { transform: 'extract', load: 'transform' }[step]; },
+    prerequisite(step) { return this.tabs.find(t => t.id === this.prerequisiteId(step))?.label; },
+
+    async api(method, url) {
+      const res = await fetch(url, { method });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || res.statusText);
+      return body;
+    },
+    async runStep(step) {
+      this.busy = step; this.error = '';
+      try {
+        this[step] = await this.api('POST', `/api/${step}`);
+        if (step === 'extract') this.transform = null;  // new raw data invalidates the old transform
+        if (step === 'load') this.dash = null;
+        return true;
+      } catch (e) {
+        this.error = e.message;
+        return false;
+      } finally {
+        this.busy = null;
+      }
+    },
+    async runAll() {
+      for (const step of ['extract', 'transform', 'load']) {
+        if (!(await this.runStep(step))) return;
+      }
+      this.openTab('report');
+    },
+    async clearDb() {
+      if (!confirm('Delete warehouse.db and clear all step results?')) return;
+      this.busy = 'reset'; this.error = '';
+      try {
+        await this.api('POST', '/api/reset');
+        Object.assign(this, { extract: null, transform: null, load: null, dash: null, tab: 'extract' });
+        this.disposeCharts();
+      } finally {
+        this.busy = null;
+      }
+    },
+    async openTab(id) {
+      this.tab = id;
+      if (id === 'report' && this.load) {
+        this.dash ??= await this.api('GET', '/api/dashboard');
+        await nextTick();
+        this.renderCharts();
+      }
+    },
+
+    disposeCharts() {
+      charts.forEach(c => c.dispose());
+      charts = [];
+    },
+    renderCharts() {
+      this.disposeCharts();
+      const d = this.dash;
+      const make = ref => { const c = echarts.init(this.$refs[ref]); charts.push(c); return c; };
+      const base = {
+        textStyle: { fontFamily: 'IBM Plex Sans', color: '#57534e' },
+        tooltip: { trigger: 'axis', valueFormatter: ksh, axisPointer: { type: 'shadow' },
+                   borderColor: '#d6d3d1', borderRadius: 2, textStyle: { color: '#1c1917', fontSize: 12 } },
+      };
+      const valueAxis = { type: 'value', axisLabel: { formatter: short },
+                          splitLine: { lineStyle: { color: '#e7e5e4' } } };
+      const catAxis = data => ({ type: 'category', data, axisTick: { show: false },
+                                 axisLine: { lineStyle: { color: '#a8a29e' } } });
+      const bars = (data, color) => [{ type: 'bar', data, barMaxWidth: 28, itemStyle: { color } }];
+
+      make('monthChart').setOption({ ...base, grid: { left: 56, right: 16, top: 16, bottom: 28 },
+        xAxis: catAxis(d.revenue_by_month.map(r => r.month_name)), yAxis: valueAxis,
+        series: bars(d.revenue_by_month.map(r => r.revenue), '#0f766e') });
+      make('categoryChart').setOption({ ...base, grid: { left: 90, right: 24, top: 12, bottom: 28 },
+        xAxis: valueAxis, yAxis: { ...catAxis(d.revenue_by_category.map(r => r.category)), inverse: true },
+        series: bars(d.revenue_by_category.map(r => r.revenue), '#44403c') });
+      make('storeChart').setOption({ ...base, grid: { left: 90, right: 24, top: 12, bottom: 28 },
+        xAxis: valueAxis, yAxis: { ...catAxis(d.revenue_by_store.map(r => r.city)), inverse: true },
+        series: bars(d.revenue_by_store.map(r => r.revenue), '#44403c') });
+    },
+  },
+  async mounted() {
+    const s = await this.api('GET', '/api/state');
+    Object.assign(this, { extract: s.extract, transform: s.transform, load: s.load });
+    window.addEventListener('resize', () => charts.forEach(c => c.resize()));
+  },
+});
+
+app.component('block', {
+  props: ['title', 'meta'],
+  template: `<section>
+    <h3 class="flex items-baseline gap-3 mb-2 text-sm">
+      <span class="font-mono font-medium">{{ title }}</span>
+      <span v-if="meta" class="text-xs text-stone-500">{{ meta }}</span>
+    </h3><slot></slot></section>`,
+});
+app.component('stats', {
+  props: ['items'],
+  template: `<dl class="flex flex-wrap border-y border-stone-300 divide-x divide-stone-300 bg-white">
+    <div v-for="[label, value] in items" :key="label" class="px-4 py-3 min-w-[8rem]">
+      <dt class="text-xs text-stone-500">{{ label }}</dt>
+      <dd class="font-mono text-lg mt-0.5">{{ value }}</dd>
+    </div></dl>`,
+});
+app.component('sql-view', {
+  props: ['sql'],
+  template: `<details class="mt-2 text-xs">
+    <summary class="cursor-pointer text-stone-500 hover:text-stone-800 font-mono w-fit">SQL</summary>
+    <pre class="mt-1 whitespace-pre-wrap font-mono bg-stone-900 text-stone-100 p-3 rounded-sm">{{ sql }}</pre></details>`,
+});
+app.component('data-table', {
+  props: { rows: Array, columns: Array, maxHeight: String },
+  computed: { cols() { return this.columns || Object.keys(this.rows[0] || {}); } },
+  template: `<div class="overflow-auto border border-stone-300 bg-white" :style="maxHeight ? { maxHeight } : {}">
+    <table class="w-full text-xs font-mono">
+      <thead class="sticky top-0 bg-stone-100 text-stone-600"><tr class="text-left">
+        <th v-for="c in cols" :key="c" class="px-2 py-1.5 font-medium whitespace-nowrap">{{ c }}</th></tr></thead>
+      <tbody><tr v-for="(r, i) in rows" :key="i" class="border-t border-stone-200">
+        <td v-for="c in cols" :key="c" class="px-2 py-1 whitespace-pre"
+            :class="r[c] === '' ? 'text-stone-400' : ''">{{ r[c] === '' ? 'NULL' : r[c] }}</td>
+      </tr></tbody>
+    </table>
+    <p v-if="!rows.length" class="text-stone-400 px-2 py-2 text-xs">No rows.</p></div>`,
+});
+
+app.mount('#app');
+</script>
+</body>
+</html>
